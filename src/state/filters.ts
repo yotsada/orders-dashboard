@@ -8,8 +8,8 @@
 //  - component จะแค่ "เรียกใช้" ไม่ต้องรู้ว่ากรองยังไง
 // =============================================================
 
-import { DEFAULT_FILTERS, ORDER_STATUSES } from '../types';
-import type { Filters, Order, OrderStatus } from '../types';
+import { DEFAULT_FILTERS, ORDER_STATUSES } from "../types";
+import type { Filters, Order, OrderStatus, SortKey } from "../types";
 
 // -------------------------------------------------------------
 // 1) Action — "คำสั่ง" ที่ส่งเข้า reducer เพื่อเปลี่ยน filter
@@ -20,12 +20,13 @@ import type { Filters, Order, OrderStatus } from '../types';
 //   TypeScript จะแดงทันที
 // -------------------------------------------------------------
 export type FiltersAction =
-  | { type: 'setQuery'; q: string }
-  | { type: 'setTab'; tab: Filters['tab'] }
-  | { type: 'setStatus'; status: Filters['status'] }
-  | { type: 'setPage'; page: number }
-  | { type: 'setPageSize'; pageSize: number }
-  | { type: 'reset' };
+  | { type: "setQuery"; q: string }
+  | { type: "setTab"; tab: Filters["tab"] }
+  | { type: "setStatus"; status: Filters["status"] }
+  | { type: "setPage"; page: number }
+  | { type: "setPageSize"; pageSize: number }
+  | { type: "setSort"; key: SortKey }
+  | { type: "reset" };
 
 // -------------------------------------------------------------
 // 2) Reducer — รับ state เดิม + action → คืน state ใหม่
@@ -39,18 +40,24 @@ export type FiltersAction =
 // -------------------------------------------------------------
 export function filtersReducer(state: Filters, action: FiltersAction): Filters {
   switch (action.type) {
-    case 'setQuery':
+    case "setQuery":
       return { ...state, q: action.q, page: 1 };
-    case 'setTab':
+    case "setTab":
       return { ...state, tab: action.tab, page: 1 };
-    case 'setStatus':
+    case "setStatus":
       return { ...state, status: action.status, page: 1 };
-    case 'setPageSize':
+    case "setPageSize":
       return { ...state, pageSize: action.pageSize, page: 1 };
-    case 'setPage':
+          case 'setSort': {
+      // กดคอลัมน์เดิม = สลับทิศ · กดคอลัมน์ใหม่ = เริ่มที่ desc
+      const same = state.sort.key === action.key;
+      const dir = same && state.sort.dir === 'desc' ? 'asc' : 'desc';
+      return { ...state, sort: { key: action.key, dir }, page: 1 };
+    }
+    case "setPage":
       // เปลี่ยนหน้าอย่างเดียว ไม่ reset อะไร
       return { ...state, page: action.page };
-    case 'reset':
+    case "reset":
       // DEFAULT_FILTERS มาจาก types.ts — ค่าเดียวกับตอนเริ่มต้นแอป
       return DEFAULT_FILTERS;
     default: {
@@ -70,7 +77,7 @@ export function filtersReducer(state: Filters, action: FiltersAction): Filters {
 //  - ไม่มีข้อมูลเลยตั้งแต่ต้น → ข้อความอีกแบบ ไม่ต้องมีปุ่ม Clear
 // -------------------------------------------------------------
 export function isFiltered(f: Filters): boolean {
-  return f.q.trim() !== '' || f.tab !== 'all' || f.status !== 'all';
+  return f.q.trim() !== "" || f.tab !== "all" || f.status !== "all";
 }
 
 // -------------------------------------------------------------
@@ -79,7 +86,7 @@ export function isFiltered(f: Filters): boolean {
 // -------------------------------------------------------------
 function matchesQuery(order: Order, q: string): boolean {
   const needle = q.trim().toLowerCase();
-  if (needle === '') return true; // ไม่ได้พิมพ์อะไร = ผ่านหมด
+  if (needle === "") return true; // ไม่ได้พิมพ์อะไร = ผ่านหมด
   return [order.id, order.customer.name, order.customer.email].some((text) =>
     text.toLowerCase().includes(needle),
   );
@@ -99,9 +106,14 @@ export function filterOrders(orders: Order[], f: Filters): Order[] {
     .filter((o) => matchesQuery(o, f.q))
     .filter((o) => f.tab === 'all' || o.status === f.tab)
     .filter((o) => f.status === 'all' || o.status === f.status)
-    // ISO 8601 UTC เรียงแบบ string ได้ถูกต้องเลย (ปี-เดือน-วัน-เวลา)
-    // b ก่อน a = ใหม่ → เก่า
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    .sort((a, b) => compare(a, b, f.sort.key) * (f.sort.dir === 'asc' ? 1 : -1));
+}
+
+// เทียบ 2 ออเดอร์ตามคอลัมน์ · ตัวเลขลบกัน, ข้อความใช้ localeCompare
+// (ISO 8601 UTC เรียงแบบ string ได้ถูกต้องเลย)
+function compare(a: Order, b: Order, key: SortKey): number {
+  if (key === 'totalSatang') return a.totalSatang - b.totalSatang;
+  return a[key].localeCompare(b[key]);
 }
 
 // -------------------------------------------------------------
@@ -117,7 +129,11 @@ export interface Page<T> {
   page: number;
 }
 
-export function paginate<T>(items: T[], page: number, pageSize: number): Page<T> {
+export function paginate<T>(
+  items: T[],
+  page: number,
+  pageSize: number,
+): Page<T> {
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
   const safePage = Math.min(Math.max(1, page), totalPages); // กันหน้าเกินขอบ
   const start = (safePage - 1) * pageSize;
@@ -136,11 +152,14 @@ export function paginate<T>(items: T[], page: number, pageSize: number): Page<T>
 // → พิมพ์ค้นหา "aom" แล้วตัวเลขทุก tab จะลดตามไปด้วย
 //   แต่การกด tab ไม่ทำให้ตัวเลข tab อื่นกลายเป็น 0
 // -------------------------------------------------------------
-export function countByStatus(orders: Order[], q: string): Record<OrderStatus | 'all', number> {
+export function countByStatus(
+  orders: Order[],
+  q: string,
+): Record<OrderStatus | "all", number> {
   const matched = orders.filter((o) => matchesQuery(o, q));
 
   // เริ่มทุกสถานะที่ 0 ก่อน เพื่อให้ tab ที่ไม่มีข้อมูลแสดง 0 ไม่ใช่ undefined
-  const counts = { all: matched.length } as Record<OrderStatus | 'all', number>;
+  const counts = { all: matched.length } as Record<OrderStatus | "all", number>;
   for (const s of ORDER_STATUSES) counts[s] = 0;
   for (const o of matched) counts[o.status] += 1;
 

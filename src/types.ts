@@ -33,12 +33,22 @@ export type Query =
   | { status: 'empty' }
   | { status: 'error'; message: string };
 
+  // คอลัมน์ที่กดเรียงได้
+export type SortKey = 'id' | 'totalSatang' | 'createdAt';
+export const SORT_KEYS = ['id', 'totalSatang', 'createdAt'] as const satisfies readonly SortKey[];
+
+export interface Sort {
+  key: SortKey;
+  dir: 'asc' | 'desc';
+}
+
 export interface Filters {
   q: string;
   tab: OrderStatus | 'all';
   status: OrderStatus | 'all';
   page: number;
   pageSize: number;
+  sort: Sort;
 }
 
 export const DEFAULT_FILTERS = {
@@ -47,4 +57,5 @@ export const DEFAULT_FILTERS = {
   status: 'all',
   page: 1,
   pageSize: 8,
+    sort: { key: 'createdAt', dir: 'desc' }, // ค่าเริ่มต้น: Date ใหม่ → เก่า
 } as const satisfies Filters;
