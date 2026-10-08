@@ -1,0 +1,6 @@
+@import "tailwindcss";
+
+/* ฟอนต์ Inter ตาม Figma → class font-sans */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
