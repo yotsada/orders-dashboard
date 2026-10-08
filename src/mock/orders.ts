@@ -13,6 +13,9 @@ export class MockApiError extends Error {
 const NAMES = [
   'Aom Chaiyaporn', 'Beam Srisuk', 'Chompoo Wongsa', 'Dao Rattana', 'Earth Kittisak',
   'Fah Siriwan', 'Golf Thanakorn', 'Ice Pimchanok', 'Jane Suda', 'Kan Phuwadol',
+  'Lek Boonmee', 'Mint Sukjai', 'Nok Charoen', 'Oat Prasert', 'Pim Kaewta',
+  'Ploy Somsri', 'Rin Manee', 'Sun Chaiwat', 'Tan Wiriya', 'Uma Rakdee',
+  'View Thongdee', 'Win Saetang', 'Yam Kongkaew', 'Zen Phromma', 'Bow Inthara',
 ];
 
 const PRODUCTS: Omit<LineItem, 'quantity'>[] = [
@@ -36,7 +39,9 @@ function makeOrder(i: number): Order {
     quantity: ((i + k) % 3) + 1,
   }));
   const base = Date.UTC(2026, 8, 30, 10, 0);
-  const createdAt = new Date(base - i * 17 * 60 * 60 * 1000).toISOString();
+    // ยิ่งเก่ายิ่งห่าง → ช่วง 30 วันล่าสุดมีออเดอร์มากกว่าช่วงก่อนหน้า (ให้ KPI มี % ขึ้น/ลง)
+  const hoursAgo = i * 12 + i * i;
+  const createdAt = new Date(base - hoursAgo * 60 * 60 * 1000).toISOString();
 
   return {
     id: `ORD-${10500 - i}`,
